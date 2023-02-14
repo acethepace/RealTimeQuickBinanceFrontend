@@ -1,6 +1,7 @@
 import React, {Component} from 'react';
 import CanvasJSReact from '../canvasjs.react';
 import {getStripLinesFromOpenOrders, roundOff} from "../akshat_util/AkshatUtil";
+import {getRiskCalcState, setRiskCalcState} from "../akshat_util/RiskCalcState";
 
 var CanvasJSChart = CanvasJSReact.CanvasJSChart;
 
@@ -12,7 +13,6 @@ class Chart extends Component {
         let crosshairValue = 0;
         let isMarketKeyDown = false;
         let isRiskCalcKeyDown = false;
-        let isFirstRiskClickComplete = false;
         let entryPrice = 0;
 
         // M Key handlers
@@ -29,7 +29,7 @@ class Chart extends Component {
                 isMarketKeyDown = false;
             } else if (e.key === ' ') {
                 isRiskCalcKeyDown = false;
-                isFirstRiskClickComplete = false;
+                setRiskCalcState(false);
             }
         };
         document.addEventListener('keydown', keyDownHandler);
@@ -41,14 +41,12 @@ class Chart extends Component {
         // when the chart is clicked
         function divClick(e) {
             console.log("registered click on : " + crosshairValue);
-            console.log("key : " + isFirstRiskClickComplete);
-            console.log("key : " + isRiskCalcKeyDown);
             if (isMarketKeyDown) {
                 props.marketOrderFunction(crosshairValue)
             } else if (isRiskCalcKeyDown) {
-                if (!isFirstRiskClickComplete) {
+                if (!getRiskCalcState()) {
                     entryPrice = crosshairValue;
-                    isFirstRiskClickComplete = true;
+                    setRiskCalcState(true);
                 } else {
                     props.riskCalcOrderFunction(entryPrice, crosshairValue);
                 }
@@ -57,7 +55,7 @@ class Chart extends Component {
             } else if (e.shiftKey) {
                 props.stopLimitOrderFunction(crosshairValue);
             } else {
-                alert("registered click on : " + crosshairValue);
+                alert("registered no-action click on : " + crosshairValue);
             }
         }
 
@@ -85,7 +83,7 @@ class Chart extends Component {
                 crosshair: {
                     enabled: true,
                     updated: function (e) {
-                        crosshairValue = roundOff(e.value)
+                        crosshairValue = roundOff(e.value, true)
                     }
                 },
                 maximum: dataMax + (dataMax - dataMin) * 0.3,
@@ -104,11 +102,11 @@ class Chart extends Component {
             <div onClick={divClick}>
                 <CanvasJSChart options={options}
                                onRef={ref => this.chart = ref}
+                               containerProps={{width: '100%', height: '600px'}}
                 />
-                {/*You can get reference to the chart instance as shown above using onRef. This allows you to access all chart properties and methods*/}
             </div>
         );
-    }
+    };
 }
 
 Chart.propTypes = {};

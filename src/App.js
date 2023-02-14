@@ -3,7 +3,7 @@ import {useEffect, useRef, useState} from "react";
 import {
     createLimitOrder,
     createMarketOrder, createRiskCalcOrder,
-    createStopLimitOrder, getOpenOrders,
+    createStopLimitOrder, getExchangeInfo, getOpenOrders,
     getSampleData, pairToSet,
     parseData,
     parseSingleData, roundOff, setOpenOrdersFunction, setter_pairToSet, setter_setOpenOrdersFunction
@@ -81,20 +81,30 @@ function App() {
             })
         });
 
+        // client.exchangeInfo().then(exchangeInfo => {
+        //     console.log("exchange info: ");
+        //     const output = exchangeInfo.symbols.filter(symbolInfo => {
+        //         return symbolInfo.symbol === pair;
+        //     })[0];
+        //     console.log(output);
+        // })
+
+        getExchangeInfo(pair);
+
         getOpenOrders(pair, setOpenOrders);
         setter_setOpenOrdersFunction(setOpenOrders);
     }, [pair, interval]);
 
 
     function createLimitOrderWithValue(value) {
-        console.log(amountValueRef.current.value)
+        console.log(reduceOnlyEnabledRef.current.checked)
         const createOrderInput = new CreateOrderInput(
             buySellToggle.current.state.checked ? "BUY" : "SELL",
             value,
             null,
             parseFloat(amountValueRef.current.value),
             'GTC',
-            reduceOnlyEnabledRef.current.value,
+            reduceOnlyEnabledRef.current.checked,
             null,
             "LIMIT",
             pair
@@ -113,14 +123,14 @@ function App() {
         } else {
             price = stopPrice - (stopPrice * stopLossSlippage / 100);
         }
-        price = roundOff(price);
+        price = roundOff(price, true);
         const createOrderInput = new CreateOrderInput(
             side,
             price,
             stopPrice,
             parseFloat(amountValueRef.current.value),
             'GTC',
-            reduceOnlyEnabledRef.current.value,
+            reduceOnlyEnabledRef.current.checked,
             stopLossSlippage,
             "STOP_LOSS_LIMIT",
             pair
@@ -137,7 +147,7 @@ function App() {
             null,
             parseFloat(amountValueRef.current.value),
             'GTC',
-            reduceOnlyEnabledRef.current.value,
+            reduceOnlyEnabledRef.current.checked,
             null,
             "MARKET",
             pair
@@ -147,17 +157,26 @@ function App() {
     }
 
     function createRiskCalcOrderWithValue(entryPrice, stopLossPrice) {
+        const stopLossSlippage = parseFloat(stopLossSlippageRef.current.value);
+        const side = buySellToggle.current.state.checked ? "BUY" : "SELL";
+        let price = 0;
+        if (side === "BUY") {
+            price = stopLossPrice + (stopLossPrice * stopLossSlippage / 100);
+        } else {
+            price = stopLossPrice - (stopLossPrice * stopLossSlippage / 100);
+        }
+        price = roundOff(price, true);
         const risk = parseFloat(riskValueRef.current.value);
         let quantity = risk / (stopLossPrice - entryPrice);
         quantity = quantity > 0 ? quantity : quantity * -1;
-        quantity = roundOff(quantity);
+        quantity = roundOff(quantity, false);
         const createOrderInput = new CreateOrderInput(
-            buySellToggle.current.state.checked ? "BUY" : "SELL",
-            entryPrice,
+            side,
+            price,
             stopLossPrice,
             quantity,
             'GTC',
-            reduceOnlyEnabledRef.current.value,
+            reduceOnlyEnabledRef.current.checked,
             null,
             "STOP",
             pair

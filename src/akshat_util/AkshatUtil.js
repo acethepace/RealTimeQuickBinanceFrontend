@@ -1,6 +1,6 @@
 import {api_key, lambda_endpoint, secret_key} from "../secret";
 import * as CryptoJS from 'crypto-js';
-import {binanceEndpoint, getOpenOrdersPath, newOrderPath} from "../config";
+import {binanceEndpoint, getExchangeInfoPath, getOpenOrdersPath, newOrderPath} from "../config";
 import Binance from 'binance-api-react-native';
 
 const client = Binance({
@@ -10,6 +10,8 @@ const client = Binance({
 
 let setOpenOrdersFunction;
 let pairToSet;
+let qtyRounder;
+let priceRounder;
 
 export function setter_setOpenOrdersFunction(func) {
     setOpenOrdersFunction = func;
@@ -21,17 +23,6 @@ export function setter_pairToSet(pair) {
 
 export function getSampleData() {
     return [
-        {x: new Date("2017-01-01"), y: [36.61, 38.45, 36.19, 36.82]},
-        {x: new Date("2017-02-01"), y: [36.82, 36.95, 34.84, 36.20]},
-        {x: new Date("2017-03-01"), y: [35.85, 36.30, 34.66, 36.07]},
-        {x: new Date("2017-04-01"), y: [36.19, 37.50, 35.21, 36.15]},
-        {x: new Date("2017-05-01"), y: [36.11, 37.17, 35.02, 36.11]},
-        {x: new Date("2017-06-01"), y: [36.12, 36.57, 33.34, 33.74]},
-        {x: new Date("2017-07-01"), y: [33.51, 35.86, 33.23, 35.47]},
-        {x: new Date("2017-08-01"), y: [35.66, 36.70, 34.38, 35.07]},
-        {x: new Date("2017-09-01"), y: [35.24, 38.15, 34.93, 38.08]},
-        {x: new Date("2017-10-01"), y: [38.12, 45.80, 38.08, 45.49]},
-        {x: new Date("2017-11-01"), y: [45.97, 47.30, 43.77, 44.84]},
         {x: new Date("2017-12-01"), y: [44.73, 47.64, 42.67, Math.random()]}
     ];
 }
@@ -100,11 +91,32 @@ export function getOpenOrders(pair, setOpenOrders) {
         const baseUrl = `${binanceEndpoint}${getOpenOrdersPath}`
         const queryString = `symbol=${pair}&timestamp=${timestamp}`
         createRequest(baseUrl, queryString, "GET").then(response => {
-            console.log('parsed lambda response: ', response);
+            // console.log('parsed lambda response: ', response);
             setOpenOrders(JSON.parse(response))
         });
     });
 
+}
+
+export function getExchangeInfo(symbol) {
+    const baseUrl = `${binanceEndpoint}${getExchangeInfoPath}`
+    createRequest(baseUrl, "", "GET").then(exchangeInfo => {
+        const filters = JSON.parse(exchangeInfo).symbols.filter(symbolInfo => {
+            return symbolInfo.symbol === symbol;
+        })[0].filters;
+
+        //parse qty and price precisions
+        const qtyStepSize = filters.filter(fil => {
+            return fil.filterType === "LOT_SIZE";
+        })[0].stepSize;
+        const priceStepSize = filters.filter(filter => {
+            return filter.filterType === "PRICE_FILTER";
+        })[0].tickSize;
+
+        //update the rounders based on the responses
+        qtyRounder = 1 / parseFloat(qtyStepSize);
+        priceRounder = 1 / parseFloat(priceStepSize);
+    });
 }
 
 export function getStripLinesFromOpenOrders(openOrders) {
@@ -132,8 +144,10 @@ export function getStripLinesFromOpenOrders(openOrders) {
     return striplines;
 }
 
-export function roundOff(float) {
-    return Math.round(float * 1e1) / 1e1
+
+export function roundOff(float, isPrice) {
+    const rounder = isPrice ? priceRounder : qtyRounder;
+    return Math.round(float * rounder) / rounder;
 }
 
 function createRequest(baseUrl, queryString, method) {
@@ -153,7 +167,7 @@ function handleResponse(response) {
     if (response.msg) {
         alert("Error while executing: " + response.msg);
     } else if (JSON.parse(response).orderId) {
-        alert("Order placed successfully.");
+        // alert("Order placed successfully.");
         getOpenOrders(pairToSet, setOpenOrdersFunction);
     }
 }
